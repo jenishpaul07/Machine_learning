@@ -1,67 +1,85 @@
-# Candidate Elimination Algorithm
+import pandas as pd
+import numpy as np
 
-import csv
+data = [
+    ['Technical', 'Senior', 'excellent', 'good', 'urban', 'yes'],
+    ['Technical', 'Junior', 'excellent', 'good', 'urban', 'yes'],
+    ['Non-Technical', 'Junior', 'average', 'poor', 'rural', 'no'],
+    ['Technical', 'Senior', 'average', 'good', 'rural', 'no'],
+    ['Technical', 'Senior', 'excellent', 'good', 'rural', 'yes']
+]
 
-def candidate_elimination(data):
-    # Initialize S and G
-    num_attributes = len(data[0]) - 1
+columns = ['Role', 'Experience', 'Performance', 'InternetQuality', 'WorkLocation', 'Output']
 
-    S = ['0'] * num_attributes
-    G = [['?'] * num_attributes]
+df = pd.DataFrame(data, columns=columns)
 
-    print("Initial S:", S)
-    print("Initial G:", G)
-    print("-" * 50)
 
-    for i, example in enumerate(data):
-        x = example[:-1]
-        label = example[-1]
+X = np.array(df.iloc[:, :-1])
+y = np.array(df.iloc[:, -1])
 
-        print(f"Training Example {i + 1}: {example}")
 
-        if label == 'Yes':  # Positive example
-            for j in range(num_attributes):
-                if S[j] == '0':
-                    S[j] = x[j]
-                elif S[j] != x[j]:
+def is_consistent(hypothesis, example):
+    return all(h == '?' or h == e for h, e in zip(hypothesis, example))
+
+
+def more_general(h1, h2):
+    return all(h1[i] == '?' or h1[i] == h2[i] for i in range(len(h1)))
+
+
+def candidate_elimination(X, y):
+    n = X.shape[1]
+
+
+    S = X[y == 'yes'][0].copy()
+    G = [['?' for _ in range(n)]]
+
+    for i in range(len(X)):
+        if y[i] == 'yes':
+
+            for j in range(n):
+                if S[j] != X[i][j]:
                     S[j] = '?'
 
-            # Remove inconsistent hypotheses from G
-            G = [g for g in G if all(g[j] == '?' or g[j] == S[j] for j in range(num_attributes))]
 
-        else:  # Negative example
+            G = [g for g in G if is_consistent(g, X[i])]
+
+        else:
             new_G = []
             for g in G:
-                if all(g[j] == '?' or g[j] == x[j] for j in range(num_attributes)):
-                    for j in range(num_attributes):
-                        if g[j] == '?':
-                            if S[j] != '?' and S[j] != x[j]:
-                                new_hypothesis = g.copy()
-                                new_hypothesis[j] = S[j]
-                                new_G.append(new_hypothesis)
+                if is_consistent(g, X[i]):
+                    for j in range(n):
+                        if S[j] != '?' and S[j] != X[i][j]:
+                            new_h = g.copy()
+                            new_h[j] = S[j]
+                            if new_h not in new_G:
+                                new_G.append(new_h)
                 else:
                     new_G.append(g)
 
-            G = new_G
 
-        print("S:", S)
-        print("G:", G)
-        print("-" * 50)
+            G = [
+                h for h in new_G
+                if any(more_general(h, s) for s in [S])
+            ]
+
+
+            G = [
+                h for h in G
+                if not any(
+                    other != h and more_general(other, h)
+                    for other in G
+                )
+            ]
+
+        print(f"\nAfter instance {i+1}:")
+        print("S =", S)
+        print("G =", G)
 
     return S, G
 
 
-# 🔹 Sample training data
-# Format: [Sky, AirTemp, Humidity, Wind, Water, Forecast, Target]
-training_data = [
-    ['Sunny', 'Warm', 'Normal', 'Strong', 'Warm', 'Same', 'Yes'],
-    ['Sunny', 'Warm', 'High', 'Strong', 'Warm', 'Same', 'Yes'],
-    ['Rainy', 'Cold', 'High', 'Strong', 'Warm', 'Change', 'No'],
-  
-]
 
-# Run algorithm
-S_final, G_final = candidate_elimination(training_data)
+final_S, final_G = candidate_elimination(X, y)
 
-print("\nFinal Specific Hypothesis (S):", S_final)
-print("Final General Hypotheses (G):", G_final)
+print("\nFinal Specific Hypothesis:", final_S)
+print("Final General Hypothesis:", final_G)
